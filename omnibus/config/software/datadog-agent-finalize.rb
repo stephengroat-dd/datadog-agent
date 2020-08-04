@@ -103,6 +103,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
 
             # Move SELinux policy
             if debian? || redhat?
@@ -191,7 +192,7 @@ build do
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else 
+            else
                 hardened_runtime = ""
             end
 
