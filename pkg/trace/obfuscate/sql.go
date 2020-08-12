@@ -189,6 +189,8 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 // tableFinderFilter is a filter which attempts to identify the table name as it goes through each
 // token in a query.
 type tableFinderFilter struct {
+	storeNames      bool
+	normalizeTables bool
 	// seen keeps track of unique table names encountered by the filter.
 	seen map[string]struct{}
 	// csv specifies a comma-separated list of tables
@@ -198,20 +200,41 @@ type tableFinderFilter struct {
 // Filter implements tokenFilter.
 func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	switch lastToken {
-	case From:
+	case From, Join:
 		// SELECT ... FROM [tableName]
 		// DELETE FROM [tableName]
+		// ... JOIN [tableName]
 		if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
 			// first character in buffer is not a letter; we might have a nested
 			// query like SELECT * FROM (SELECT ...)
 			break
 		}
 		fallthrough
-	case Update, Into, Join:
+	case Update, Into:
 		// UPDATE [tableName]
 		// INSERT INTO [tableName]
-		// ... JOIN [tableName]
-		f.storeName(string(buffer))
+		if f.storeNames {
+			f.storeName(string(buffer))
+		}
+
+		if f.normalizeTables && token == ID {
+			// Replace all digits
+			buf := make([]byte, 0, len(buffer))
+			scanningDigit := false
+			for _, c := range string(buffer) {
+				if isDigit(c) {
+					if scanningDigit {
+						continue
+					}
+					scanningDigit = true
+					buf = append(buf, byte('?'))
+					continue
+				}
+				scanningDigit = false
+				buf = append(buf, byte(c))
+			}
+			buffer = buf
+		}
 	}
 	return token, buffer, nil
 }
@@ -251,15 +274,17 @@ type ObfuscatedQuery struct {
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
+	tableFinder := &tableFinderFilter{
+		storeNames:      config.HasFeature("table_names"),
+		normalizeTables: config.HasFeature("normalize_sql_tables"),
+	}
 	filters := []tokenFilter{
 		&discardFilter{},
 		&replaceFilter{},
 		&groupingFilter{},
+		tableFinder,
 	}
-	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
-		filters = append(filters, tableFinder)
-	}
+
 	var (
 		out       bytes.Buffer
 		err       error
