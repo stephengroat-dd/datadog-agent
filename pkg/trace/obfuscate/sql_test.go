@@ -538,6 +538,10 @@ ORDER BY [b].[Name]`,
 			`SELECT * FROM foo LEFT JOIN bar ON 'embedded \'quote\' in string' = foo.b WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
+		{
+			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
+		},
 	}
 
 	for _, c := range cases {
