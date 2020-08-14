@@ -1,0 +1,8 @@
+  
+extraction:
+  go:
+     index:
+        build_command:
+        - pip install -r requirements.txt
+        - PATH=$PATH:$GOPATH/bin invoke deps
+        - invoke agent.build --build-exclude=systemd
